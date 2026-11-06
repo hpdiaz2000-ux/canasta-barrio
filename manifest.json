@@ -1,6 +1,6 @@
 {
   "name": "Canasta Barrio",
-  "short_name": "Canasta",
+  "short_name": "Canasta Barrio",
   "description": "Compara tu lista de compras entre almacenes y supermercados cercanos.",
   "start_url": "./",
   "display": "standalone",
