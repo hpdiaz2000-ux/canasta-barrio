@@ -1,0 +1,14 @@
+{
+  "name": "Canasta Barrio",
+  "short_name": "Canasta",
+  "description": "Compara tu lista de compras entre almacenes y supermercados cercanos.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EDF1EB",
+  "theme_color": "#1F4535",
+  "lang": "es-CL",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
