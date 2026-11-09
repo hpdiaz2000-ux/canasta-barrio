@@ -10,27 +10,27 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Canasta Barrio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<!-- Librería de mapas Leaflet (gratis, código abierto) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-/* Layout: one phone-width column — barrio map on top, ranking of nearby stores, then your list. Price tags as almacén chalk-slates. */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+/* Layout: una columna tamaño teléfono — ubicación y presupuesto, mapa real, ranking de locales y tu lista. */
 :root{
   --bg:#EDF1EB; --surface:#FFFFFF; --ink:#18231D; --muted:#5E6B63; --line:#D5DDD6;
   --slate:#1F4535; --slate-ink:#F4F7F2; --accent:#1F6B4A; --tag:#E6A82A; --tag-ink:#2A1D00;
-  --good:#1F7A4D; --warn:#B4461A; --street:#DCE3DB; --block:#E4EAE2; --park:#C9DEC6;
+  --good:#1F7A4D; --warn:#B4461A;
   --font-display:"Unbounded", "Arial Black", system-ui, sans-serif;
   --font-body:"Familjen Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+@media (prefers-color-scheme: dark){ :root{
   --bg:#101613; --surface:#18211C; --ink:#E5ECE7; --muted:#97A59C; --line:#2A3630;
   --slate:#0B2A1E; --slate-ink:#E5F0E9; --accent:#6CC497; --tag:#F0BB4D; --tag-ink:#2A1D00;
-  --good:#5FCB92; --warn:#F08A5D; --street:#25302A; --block:#1C2621; --park:#1F3A2A; color-scheme:dark }}
-:root[data-theme="dark"]{
-  --bg:#101613; --surface:#18211C; --ink:#E5ECE7; --muted:#97A59C; --line:#2A3630;
-  --slate:#0B2A1E; --slate-ink:#E5F0E9; --accent:#6CC497; --tag:#F0BB4D; --tag-ink:#2A1D00;
-  --good:#5FCB92; --warn:#F08A5D; --street:#25302A; --block:#1C2621; --park:#1F3A2A; color-scheme:dark }
+  --good:#5FCB92; --warn:#F08A5D; color-scheme:dark }}
 
 body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
 .app{max-width:520px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 40px;display:flex;flex-direction:column;gap:18px}
@@ -39,7 +39,6 @@ h1,h2{margin:0;text-wrap:balance}
 button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* header */
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .brand{font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.01em}
 .brand span{color:var(--accent)}
@@ -48,36 +47,35 @@ button{font:inherit;color:inherit;cursor:pointer}
 .modes button{border:0;background:transparent;border-radius:9px;padding:9px;font-weight:600;color:var(--muted)}
 .modes button[aria-pressed="true"]{background:var(--slate);color:var(--slate-ink)}
 
-/* budget slate */
-.slate{background:var(--slate);color:var(--slate-ink);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
-.slate .loc{font-size:13px;opacity:.8}
+.slate{background:var(--slate);color:var(--slate-ink);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.locrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.slate .loc{font-size:13px;opacity:.9;min-width:0;flex:1}
+.gps{border:0;border-radius:10px;padding:9px 12px;font-weight:700;font-size:14px;background:var(--tag);color:var(--tag-ink);white-space:nowrap}
+.gps:disabled{opacity:.7}
+.note{font-size:13px;background:color-mix(in srgb,var(--slate-ink) 12%,transparent);border-radius:8px;padding:8px 10px}
 .budget-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .budget-row label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;opacity:.75;display:block;margin-bottom:2px}
 .budget-in{display:flex;align-items:baseline;gap:4px;font-family:var(--font-display);font-size:28px;font-weight:700}
 .budget-in input{width:7ch;background:transparent;border:0;border-bottom:2px dashed color-mix(in srgb,var(--slate-ink) 45%,transparent);color:inherit;font:inherit;padding:0}
 .verdict{font-weight:600;font-size:14px;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,var(--slate-ink) 12%,transparent)}
 
-/* map */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px}
 .mapwrap{padding:12px;display:flex;flex-direction:column;gap:10px}
 .maphead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .maphead h2,.sec h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600;font-family:var(--font-body)}
 .radius{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .radius input{width:120px;accent-color:var(--accent)}
-svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(--block)}
-.pin{cursor:pointer}
-.pin:focus{outline:none}
-.pin:focus-visible circle.p{stroke:var(--accent);stroke-width:3}
-@keyframes pulse{0%{r:6;opacity:.55}100%{r:22;opacity:0}}
-.me-pulse{animation:pulse 2s ease-out infinite;fill:var(--accent)}
-@media (prefers-reduced-motion:reduce){.me-pulse{animation:none;opacity:.2}}
+#map{height:320px;border-radius:10px;z-index:0;background:var(--line)}
+.map-off{display:grid;place-items:center;height:100%;color:var(--muted);font-size:14px;padding:16px;text-align:center}
+.pin{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);font-family:var(--font-body)}
+.pin.sel{transform:scale(1.2)}
+.me{width:16px;height:16px;border-radius:50%;background:#1F6B4A;border:3px solid #fff;box-shadow:0 0 0 6px rgba(31,107,74,.25)}
+.leaflet-container{font-family:var(--font-body)}
 
-/* combo */
 .combo{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1.5px dashed var(--accent);border-radius:14px}
 .combo b{color:var(--accent)}
 .combo .big{font-family:var(--font-display);font-size:18px;font-weight:700;white-space:nowrap}
 
-/* store list */
 .sec{display:flex;flex-direction:column;gap:10px}
 .stores{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
 .store{padding:12px 14px;display:flex;flex-direction:column;gap:8px;transition:border-color .2s}
@@ -87,7 +85,7 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
 .store.best .rank{background:var(--good);color:var(--surface)}
 .sname{font-weight:700;min-width:0}
 .smeta{font-size:13px;color:var(--muted)}
-.price-tag{font-family:var(--font-display);font-weight:700;font-size:16px;background:var(--tag);color:var(--tag-ink);padding:5px 9px;border-radius:6px;white-space:nowrap;position:relative}
+.price-tag{font-family:var(--font-display);font-weight:700;font-size:16px;background:var(--tag);color:var(--tag-ink);padding:5px 9px;border-radius:6px;white-space:nowrap}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font-size:12px;font-weight:600;padding:3px 8px;border-radius:99px;border:1px solid var(--line)}
 .chip.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
@@ -96,8 +94,8 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
 .detail{border-top:1px solid var(--line);padding-top:8px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:14px}
 .detail .min{color:var(--good);font-weight:700}
 .detail .miss{color:var(--warn)}
+.route{font-size:13px;font-weight:700;color:var(--accent);text-decoration:none}
 
-/* list */
 .items{list-style:none;margin:0;padding:0}
 .item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
 .item:first-child{border-top:0}
@@ -109,25 +107,21 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
 .add select{flex:1;min-width:0;font:inherit;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .btn{border:0;border-radius:10px;padding:9px 14px;font-weight:700;background:var(--accent);color:var(--surface)}
 
-/* almacén mode */
 .owner{padding:14px;display:flex;flex-direction:column;gap:12px}
 .owner p{margin:0;color:var(--muted);font-size:14px}
 .owner select,.owner input[type=text]{font:inherit;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
 .prow{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;font-size:14px}
 .prow input{font:inherit;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;text-align:right}
-.prow input:disabled{opacity:.45}
 .saved{font-size:13px;color:var(--good);font-weight:600;min-height:1.2em}
-
 .how{font-size:13px;color:var(--muted);padding:12px 14px;line-height:1.5}
 .how b{color:var(--ink)}
 </style>
 </head>
 <body>
-
 <div class="app">
   <header class="top">
     <div class="brand">Canasta<span>Barrio</span></div>
-    <div class="demo">Prototipo · precios de ejemplo</div>
+    <div class="demo">Piloto Renca · precios de ejemplo</div>
   </header>
 
   <div class="modes" role="group" aria-label="Modo">
@@ -135,10 +129,13 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
     <button id="m-own" aria-pressed="false">Tengo un almacén</button>
   </div>
 
-  <!-- CLIENT -->
   <section id="client" class="sec" style="gap:18px">
     <div class="slate">
-      <div class="loc">📍 Estás en Pasaje Los Aromos, Maipú (ubicación simulada)</div>
+      <div class="locrow">
+        <div class="loc" id="loctext">📍 Barrio piloto en Renca (ubicación de referencia)</div>
+        <button class="gps" id="gps">📍 Usar mi ubicación</button>
+      </div>
+      <div class="note" id="locnote" hidden></div>
       <div class="budget-row">
         <div>
           <label for="budget">Tengo para gastar</label>
@@ -153,18 +150,18 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
         <h2>Cerca de ti</h2>
         <label class="radius" for="radius">Radio <input type="range" id="radius" min="300" max="2000" step="100" value="1000"> <b class="num" id="rlab">1,0 km</b></label>
       </div>
-      <svg class="map" id="map" viewBox="0 0 360 240" role="img" aria-label="Mapa del barrio con almacenes y supermercados"></svg>
+      <div id="map" role="region" aria-label="Mapa de Renca con almacenes y supermercados"></div>
     </div>
 
     <div class="combo card" id="combo"></div>
 
     <div class="sec">
-      <h2 style="font-size:13px">Dónde te sale más barata tu lista</h2>
+      <h2>Dónde te sale más barata tu lista</h2>
       <ol class="stores" id="stores"></ol>
     </div>
 
     <div class="sec">
-      <h2 style="font-size:13px">Tu lista</h2>
+      <h2>Tu lista</h2>
       <div class="card">
         <ul class="items" id="items"></ul>
         <div class="add">
@@ -174,10 +171,9 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
       </div>
     </div>
 
-    <div class="card how"><b>Para tenerla en tu iPhone:</b> cuando esté publicada, la abres en Safari, tocas Compartir y eliges "Agregar a pantalla de inicio".</div>
+    <div class="card how"><b>Los locales de este piloto son de ejemplo.</b> Sus nombres y precios son inventados para mostrar cómo funciona la app. Mapa © colaboradores de OpenStreetMap.</div>
   </section>
 
-  <!-- OWNER -->
   <section id="owner" class="card owner" hidden>
     <h2 style="font-family:var(--font-display);font-size:18px">Publica tus precios</h2>
     <p>Así vería la app el dueño de un almacén. Cambia un precio o la oferta, vuelve a "Soy cliente" y mira cómo cambia el ranking.</p>
@@ -190,6 +186,11 @@ svg.map{width:100%;height:auto;display:block;border-radius:10px;background:var(-
 </div>
 
 <script>
+// ===== Punto de referencia del piloto en Renca (elegido por Héctor en Google Maps)
+const RENCA={lat:-33.394,lng:-70.754}; // redondeado a ~100 m a propósito
+const MAX_KM_RENCA=4; // si estás más lejos que esto, usamos el centro de Renca
+
+// ===== Productos (precio base de ejemplo)
 const P=[
  {id:'pan',n:'Pan corriente',u:'1 kg',b:1990},{id:'leche',n:'Leche entera',u:'1 L',b:1150},
  {id:'huevos',n:'Huevos',u:'bandeja 12',b:3490},{id:'arroz',n:'Arroz grado 2',u:'1 kg',b:1590},
@@ -198,48 +199,111 @@ const P=[
  {id:'tomate',n:'Tomates',u:'1 kg',b:1490},{id:'palta',n:'Paltas',u:'1 kg',b:3990},
  {id:'pollo',n:'Trutro de pollo',u:'1 kg',b:3290},{id:'deter',n:'Detergente',u:'1 L',b:3590},
  {id:'papel',n:'Papel higiénico',u:'4 rollos',b:2490},{id:'cafe',n:'Café instantáneo',u:'170 g',b:5490}];
-const S=[
- {id:1,n:'Almacén Doña Rosa',k:'Almacén',x:205,y:96,d:250,f:1.04,miss:['cafe','deter'],off:{p:'pan',pct:20,t:'Pan caliente a las 18:00, 20% menos'}},
- {id:2,n:'Minimarket El Paso',k:'Minimarket',x:110,y:150,d:450,f:1.08,miss:['palta'],off:{p:'leche',pct:10,t:'Leche entera 10% menos'}},
- {id:3,n:'Verdulería Los Aromos',k:'Verdulería',x:262,y:160,d:600,f:1.0,ov:{tomate:.72,palta:.8},miss:['deter','papel','cafe','pollo','te'],off:{p:'palta',pct:15,t:'Paltas Hass 15% menos'}},
- {id:6,n:'Almacén El Chilote',k:'Almacén',x:80,y:52,d:900,f:1.0,miss:['cafe'],off:{p:'huevos',pct:10,t:'Huevos de campo 10% menos'}},
- {id:4,n:'Súper Ahorro Pajaritos',k:'Supermercado',x:318,y:42,d:1300,f:.93,miss:[],off:{p:'aceite',pct:20,t:'Aceite 20% menos con tarjeta'}},
- {id:5,n:'Hiper La Estrella',k:'Supermercado',x:32,y:210,d:1900,f:.9,miss:[],off:{p:'pollo',pct:25,t:'Trutro de pollo 25% menos'}}];
 
-// deterministic price table (example data)
+// ===== Locales de ejemplo: posición en metros desde el centro de Renca (este, norte)
+const S=[
+ {id:1,n:'Almacén Doña Rosa',k:'Almacén',e:150,no:200,f:1.04,miss:['cafe','deter'],off:{p:'pan',pct:20,t:'Pan caliente a las 18:00, 20% menos'}},
+ {id:2,n:'Minimarket El Paso',k:'Minimarket',e:-350,no:-280,f:1.08,miss:['palta'],off:{p:'leche',pct:10,t:'Leche entera 10% menos'}},
+ {id:3,n:'Verdulería La Quinta',k:'Verdulería',e:480,no:-360,f:1.0,ov:{tomate:.72,palta:.8},miss:['deter','papel','cafe','pollo','te'],off:{p:'palta',pct:15,t:'Paltas Hass 15% menos'}},
+ {id:6,n:'Almacén El Chilote',k:'Almacén',e:-600,no:670,f:1.0,miss:['cafe'],off:{p:'huevos',pct:10,t:'Huevos de campo 10% menos'}},
+ {id:4,n:'Súper Ahorro Renca',k:'Supermercado',e:1000,no:830,f:.93,miss:[],off:{p:'aceite',pct:20,t:'Aceite 20% menos con tarjeta'}},
+ {id:5,n:'Hiper La Estrella',k:'Supermercado',e:-1500,no:-1160,f:.9,miss:[],off:{p:'pollo',pct:25,t:'Trutro de pollo 25% menos'}}];
+// Convierte metros a coordenadas reales
+S.forEach(s=>{s.lat=RENCA.lat+s.no/111320;s.lng=RENCA.lng+s.e/(111320*Math.cos(RENCA.lat*Math.PI/180))});
+
+// Distancia real entre dos puntos del planeta (fórmula de Haversine), en metros
+function dist(a,b){const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lng-a.lng)*r;
+  const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+
+// Tabla de precios de ejemplo (siempre la misma)
 function noise(a,b){let h=0;for(const c of a+b)h=(h*31+c.charCodeAt(0))>>>0;return ((h%1000)/1000-.5)*.12}
 const price={};
 S.forEach(s=>{price[s.id]={};P.forEach(p=>{if(s.miss.includes(p.id))return;
   const f=(s.ov&&s.ov[p.id])||s.f;price[s.id][p.id]=Math.round(p.b*f*(1+noise(s.n,p.id))/10)*10})});
 
 let list={pan:1,leche:2,huevos:1,arroz:1,tomate:1,palta:1,aceite:1,pollo:1};
-let budget=30000, radius=1000, sel=null, open=null;
+let budget=30000, radius=1000, sel=null, open=null, me={...RENCA}, usingGPS=false;
 try{const s=JSON.parse(localStorage.getItem('cb-list')||'null');if(s)list=s}catch(e){}
 const save=()=>{try{localStorage.setItem('cb-list',JSON.stringify(list))}catch(e){}};
 const clp=n=>'$'+Math.round(n).toLocaleString('es-CL');
+const km=m=>m<1000?Math.round(m/10)*10+' m':(m/1000).toFixed(1).replace('.',',')+' km';
 const $=id=>document.getElementById(id);
 
 function unit(s,pid){const v=price[s.id][pid];if(v==null)return null;
   return s.off&&s.off.p===pid?Math.round(v*(1-s.off.pct/100)/10)*10:v}
 function evalStore(s){let tot=0,miss=[];for(const[pid,q]of Object.entries(list)){const u=unit(s,pid);if(u==null)miss.push(pid);else tot+=u*q}return{s,tot,miss}}
 
+// ===== Mapa real (Leaflet + OpenStreetMap)
+let map=null, meMarker=null, circle=null, storeLayer=null;
+function initMap(){
+  if(!window.L){$('map').innerHTML='<div class="map-off">No se pudo cargar el mapa. Revisa tu conexión a internet y vuelve a abrir la app.</div>';return}
+  map=L.map('map',{zoomControl:true,attributionControl:true}).setView([me.lat,me.lng],15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  circle=L.circle([me.lat,me.lng],{radius,color:'#1F6B4A',weight:2,dashArray:'6 6',fillOpacity:.06}).addTo(map);
+  meMarker=L.marker([me.lat,me.lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]}),title:'Tú estás aquí'}).addTo(map);
+  storeLayer=L.layerGroup().addTo(map);
+  map.fitBounds(circle.getBounds(),{padding:[10,10]});
+}
+function fit(){if(map)map.fitBounds(circle.getBounds(),{padding:[10,10]})}
+function drawMap(best){
+  if(!map)return;
+  circle.setLatLng([me.lat,me.lng]).setRadius(radius);
+  meMarker.setLatLng([me.lat,me.lng]);
+  storeLayer.clearLayers();
+  S.forEach(s=>{const inR=s.d<=radius,isB=best&&best.s===s;
+    const col=isB?'#1F7A4D':inR?'#1F4535':'#8A948E';
+    const lbl=s.k==='Supermercado'?'S':s.k==='Minimarket'?'M':s.k==='Verdulería'?'V':'A';
+    const m=L.marker([s.lat,s.lng],{title:s.n,opacity:inR?1:.5,icon:L.divIcon({className:'',
+      html:`<div class="pin ${sel===s.id?'sel':''}" style="background:${col}">${lbl}</div>`,iconSize:[28,28],iconAnchor:[14,14]})});
+    m.on('click',()=>pick(s.id));
+    m.bindTooltip(`${s.n} · ${km(s.d)}`);
+    storeLayer.addLayer(m)});
+}
+function pick(id){const s=S.find(x=>x.id===id);
+  if(s.d>radius){radius=Math.min(2000,Math.ceil(s.d/100)*100);$('radius').value=radius;setR()}
+  sel=id;open=id;render();const el=$('st'+id);el&&el.scrollIntoView({behavior:'smooth',block:'nearest'})}
+
+// ===== GPS: pedir la ubicación real (el teléfono pregunta permiso)
+function locate(){
+  const btn=$('gps'),note=$('locnote');
+  if(!('geolocation' in navigator)){note.hidden=false;note.textContent='Este teléfono no permite compartir la ubicación. Usamos el barrio piloto en Renca.';return}
+  btn.disabled=true;btn.textContent='Buscando…';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    btn.disabled=false;btn.textContent='📍 Actualizar';
+    const here={lat:pos.coords.latitude,lng:pos.coords.longitude};
+    const far=dist(here,RENCA);
+    if(far>MAX_KM_RENCA*1000){
+      me={...RENCA};usingGPS=false;note.hidden=false;
+      note.textContent=`Estás a ${km(far)} de Renca. Este piloto solo tiene locales en Renca, así que te mostramos el barrio piloto.`;
+      $('loctext').textContent='📍 Barrio piloto en Renca (ubicación de referencia)';
+    }else{
+      me=here;usingGPS=true;note.hidden=true;
+      $('loctext').textContent=`📍 Estás aquí (precisión de ${km(pos.coords.accuracy)})`;
+    }
+    render();fit();
+  },err=>{
+    btn.disabled=false;btn.textContent='📍 Usar mi ubicación';note.hidden=false;
+    note.textContent=err.code===1
+      ?'No diste permiso para usar tu ubicación. En el iPhone puedes activarlo en Ajustes → Privacidad y seguridad → Localización → Sitios web de Safari.'
+      :'No pudimos encontrar tu ubicación. Intenta de nuevo en un lugar abierto o con mejor señal.';
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+}
+
 function render(){
+  S.forEach(s=>s.d=dist(me,s));
   const near=S.filter(s=>s.d<=radius);
   const res=near.map(evalStore).sort((a,b)=>(a.miss.length>0)-(b.miss.length>0)||a.tot-b.tot);
   const best=res.find(r=>!r.miss.length);
-  // verdict
   const v=$('verdict');
   if(best){const diff=budget-best.tot;v.textContent=diff>=0?`Te alcanza y te sobran ${clp(diff)}`:`Te faltan ${clp(-diff)}`}
   else v.textContent='Amplía el radio para ver opciones';
-  // combo
-  let ctot=0,used=new Set(),cmiss=0;
+  let ctot=0,used=new Set();
   for(const[pid,q]of Object.entries(list)){let m=null,ms=null;near.forEach(s=>{const u=unit(s,pid);if(u!=null&&(m==null||u<m)){m=u;ms=s}});
-    if(m==null)cmiss++;else{ctot+=m*q;used.add(ms.n)}}
+    if(m!=null){ctot+=m*q;used.add(ms.n)}}
   const c=$('combo');
   if(best&&used.size>1&&best.tot-ctot>0){c.hidden=false;
     c.innerHTML=`<div style="flex:1;min-width:0;font-size:14px">Si compras en <b>${used.size} lugares</b> (${[...used].join(', ')}) ahorras <b>${clp(best.tot-ctot)}</b> más.</div><div class="big num">${clp(ctot)}</div>`}
   else c.hidden=true;
-  // stores
   $('stores').innerHTML=res.map((r,i)=>{const s=r.s,isBest=best&&r===best;
     const offerIn=list[s.off.p];
     const det=open===s.id?`<div class="detail num">${Object.entries(list).map(([pid,q])=>{const p=P.find(x=>x.id===pid),u=unit(s,pid);
@@ -249,16 +313,16 @@ function render(){
     return `<li class="card store ${isBest?'best':''} ${sel===s.id?'sel':''}" id="st${s.id}">
       <button class="srow" data-s="${s.id}" aria-expanded="${open===s.id}">
         <span class="rank">${i+1}</span>
-        <span style="min-width:0"><span class="sname">${s.n}</span><br><span class="smeta">${s.k} · ${s.d<1000?s.d+' m':(s.d/1000).toFixed(1).replace('.',',')+' km'} · ${Math.max(1,Math.round(s.d/80))} min a pie</span></span>
+        <span style="min-width:0"><span class="sname">${s.n}</span><br><span class="smeta">${s.k} · ${km(s.d)} · ${Math.max(1,Math.round(s.d/80))} min a pie</span></span>
         <span class="price-tag num">${clp(r.tot)}</span>
       </button>
       <div class="chips">${r.miss.length?`<span class="chip no">No tiene: ${r.miss.map(m=>P.find(p=>p.id===m).n.toLowerCase()).join(', ')}</span>`:`<span class="chip ok">Tiene toda tu lista</span>`}
         ${isBest?'<span class="chip ok">Más barato completo</span>':''}
-        <span class="chip offer">${offerIn?'✓ ':''}${s.off.t}</span></div>${det}</li>`}).join('')
+        <span class="chip offer">${offerIn?'✓ ':''}${s.off.t}</span></div>${det}
+      ${open===s.id?`<a class="route" target="_blank" rel="noopener" href="https://www.openstreetmap.org/directions?engine=fossgis_osrm_foot&route=${me.lat}%2C${me.lng}%3B${s.lat}%2C${s.lng}">🚶 Cómo llegar</a>`:''}</li>`}).join('')
     ||'<li class="card store smeta">No hay locales en este radio. Muévelo para ver más.</li>';
   document.querySelectorAll('.srow').forEach(b=>b.onclick=()=>{const id=+b.dataset.s;open=open===id?null:id;sel=id;render()});
-  drawMap(near,best);
-  // list
+  drawMap(best);
   $('items').innerHTML=Object.entries(list).map(([pid,q])=>{const p=P.find(x=>x.id===pid);
     return `<li class="item"><div>${p.n}<small>${p.u}</small></div><div class="step"><button data-m="${pid}" aria-label="Quitar uno">−</button><span class="num">${q}</span><button data-p="${pid}" aria-label="Agregar uno">+</button></div></li>`}).join('')
     ||'<li class="item smeta">Tu lista está vacía. Agrega productos abajo.</li>';
@@ -266,37 +330,18 @@ function render(){
   document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{list[b.dataset.p]++;save();render()});
   $('addsel').innerHTML=P.filter(p=>!list[p.id]).map(p=>`<option value="${p.id}">${p.n} (${p.u})</option>`).join('')||'<option>Ya tienes todo</option>';
 }
-
-function drawMap(near,best){
-  const me={x:180,y:120}, sc=110/1000; // 110 px per km
-  let g=`<rect x="0" y="0" width="360" height="240" fill="var(--block)"/>
-  <rect x="140" y="170" width="70" height="50" rx="6" fill="var(--park)"/><text x="175" y="199" text-anchor="middle" font-size="9" fill="var(--muted)">Plaza</text>`;
-  [30,75,125,175,215].forEach(y=>g+=`<rect x="0" y="${y}" width="360" height="${y===125?9:5}" fill="var(--street)"/>`);
-  [45,95,150,230,290,335].forEach(x=>g+=`<rect x="${x}" y="0" width="${x===230?9:5}" height="240" fill="var(--street)"/>`);
-  g+=`<text x="300" y="122" font-size="8" fill="var(--muted)">Av. Pajaritos</text>`;
-  g+=`<circle cx="${me.x}" cy="${me.y}" r="${radius*sc}" fill="var(--accent)" fill-opacity=".07" stroke="var(--accent)" stroke-opacity=".5" stroke-dasharray="4 4"/>`;
-  S.forEach(s=>{const inR=s.d<=radius,isB=best&&best.s===s,isSel=sel===s.id;
-    const col=isB?'var(--good)':inR?'var(--slate)':'var(--muted)';
-    const lbl=s.k==='Supermercado'?'S':s.k==='Minimarket'?'M':s.k==='Verdulería'?'V':'A';
-    g+=`<g class="pin" tabindex="0" role="button" aria-label="${s.n}" data-pin="${s.id}" opacity="${inR?1:.35}">
-      <circle class="p" cx="${s.x}" cy="${s.y}" r="${isSel?13:11}" fill="${col}" stroke="var(--surface)" stroke-width="2"/>
-      <text x="${s.x}" y="${s.y+4}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--surface)">${lbl}</text></g>`});
-  g+=`<circle class="me-pulse" cx="${me.x}" cy="${me.y}" r="6"/><circle cx="${me.x}" cy="${me.y}" r="6" fill="var(--accent)" stroke="var(--surface)" stroke-width="2.5"/>`;
-  const m=$('map');m.innerHTML=g;
-  m.querySelectorAll('[data-pin]').forEach(p=>{const go=()=>{const id=+p.dataset.pin;const s=S.find(x=>x.id===id);
-      if(s.d>radius){radius=Math.ceil(s.d/100)*100;$('radius').value=radius;setR()}sel=id;open=id;render();
-      const el=$('st'+id);el&&el.scrollIntoView({behavior:'smooth',block:'nearest'})};
-    p.onclick=go;p.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
-}
 function setR(){$('rlab').textContent=(radius/1000).toFixed(1).replace('.',',')+' km'}
 
+$('gps').onclick=locate;
 $('radius').oninput=e=>{radius=+e.target.value;setR();render()};
-$('budget').oninput=e=>{const n=+(e.target.value.replace(/\D/g,''))||0;budget=n;render()};
+$('radius').onchange=fit;
+$('budget').oninput=e=>{budget=+(e.target.value.replace(/\D/g,''))||0;render()};
 $('budget').onblur=e=>{e.target.value=budget.toLocaleString('es-CL')};
 $('addbtn').onclick=()=>{const v=$('addsel').value;if(P.find(p=>p.id===v)){list[v]=1;save();render()}};
 
-// owner mode
-function mode(o){$('m-cli').setAttribute('aria-pressed',!o);$('m-own').setAttribute('aria-pressed',o);$('client').hidden=o;$('owner').hidden=!o;if(!o)render();else renderOwner()}
+// ===== Modo almacén
+function mode(o){$('m-cli').setAttribute('aria-pressed',!o);$('m-own').setAttribute('aria-pressed',o);$('client').hidden=o;$('owner').hidden=!o;
+  if(!o){render();if(map)setTimeout(()=>{map.invalidateSize();fit()},50)}else renderOwner()}
 $('m-cli').onclick=()=>mode(false);$('m-own').onclick=()=>mode(true);
 $('ostore').innerHTML=S.map(s=>`<option value="${s.id}">${s.n}</option>`).join('');
 $('ostore').onchange=renderOwner;
@@ -310,7 +355,7 @@ function renderOwner(){const s=S.find(x=>x.id==$('ostore').value);
     s.miss=P.filter(p=>price[s.id][p.id]==null).map(p=>p.id);flash('Precio publicado. Los clientes ya lo ven.')});
   $('ooffer').onchange=e=>{s.off.t=e.target.value;flash('Oferta publicada.')};
 }
-setR();render();
+setR();initMap();render();
 </script>
 </body>
 </html>
