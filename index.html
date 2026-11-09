@@ -113,6 +113,15 @@ button{font:inherit;color:inherit;cursor:pointer}
 .prow{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;font-size:14px}
 .prow input{font:inherit;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;text-align:right}
 .saved{font-size:13px;color:var(--good);font-weight:600;min-height:1.2em}
+.real-pin{width:14px;height:14px;border-radius:50%;background:#8A948E;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.realcard{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.realcard p{margin:0;font-size:14px}
+.reallist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.reallist li{display:grid;grid-template-columns:1fr auto;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.reallist li:first-child{border-top:0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
 .how{font-size:13px;color:var(--muted);padding:12px 14px;line-height:1.5}
 .how b{color:var(--ink)}
 </style>
@@ -151,6 +160,7 @@ button{font:inherit;color:inherit;cursor:pointer}
         <label class="radius" for="radius">Radio <input type="range" id="radius" min="300" max="2000" step="100" value="1000"> <b class="num" id="rlab">1,0 km</b></label>
       </div>
       <div id="map" role="region" aria-label="Mapa de Renca con almacenes y supermercados"></div>
+      <div class="legend"><span><i style="background:#1F4535"></i>Publica precios (ejemplo)</span><span><i style="background:#8A948E"></i>Negocio real, sin precios aún</span></div>
     </div>
 
     <div class="combo card" id="combo"></div>
@@ -158,6 +168,11 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="sec">
       <h2>Dónde te sale más barata tu lista</h2>
       <ol class="stores" id="stores"></ol>
+    </div>
+
+    <div class="sec">
+      <h2>Negocios reales del barrio</h2>
+      <div class="card realcard" id="realcard"><p class="smeta">Buscando negocios en OpenStreetMap…</p></div>
     </div>
 
     <div class="sec">
@@ -171,7 +186,7 @@ button{font:inherit;color:inherit;cursor:pointer}
       </div>
     </div>
 
-    <div class="card how"><b>Los locales de este piloto son de ejemplo.</b> Sus nombres y precios son inventados para mostrar cómo funciona la app. Mapa © colaboradores de OpenStreetMap.</div>
+    <div class="card how"><b>Los locales con precio son de ejemplo.</b> Sus nombres y precios son inventados para mostrar cómo funciona la app. Los negocios reales vienen de OpenStreetMap y todavía no publican precios. Mapa © colaboradores de OpenStreetMap.</div>
   </section>
 
   <section id="owner" class="card owner" hidden>
@@ -241,6 +256,7 @@ function initMap(){
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
   circle=L.circle([me.lat,me.lng],{radius,color:'#1F6B4A',weight:2,dashArray:'6 6',fillOpacity:.06}).addTo(map);
   meMarker=L.marker([me.lat,me.lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]}),title:'Tú estás aquí'}).addTo(map);
+  realLayer=L.layerGroup().addTo(map);
   storeLayer=L.layerGroup().addTo(map);
   map.fitBounds(circle.getBounds(),{padding:[10,10]});
 }
@@ -280,13 +296,42 @@ function locate(){
       me=here;usingGPS=true;note.hidden=true;
       $('loctext').textContent=`📍 Estás aquí (precisión de ${km(pos.coords.accuracy)})`;
     }
-    render();fit();
+    render();fit();loadReal();
   },err=>{
     btn.disabled=false;btn.textContent='📍 Usar mi ubicación';note.hidden=false;
     note.textContent=err.code===1
       ?'No diste permiso para usar tu ubicación. En el iPhone puedes activarlo en Ajustes → Privacidad y seguridad → Localización → Sitios web de Safari.'
       :'No pudimos encontrar tu ubicación. Intenta de nuevo en un lugar abierto o con mejor señal.';
   },{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+}
+
+
+// ===== Negocios reales desde OpenStreetMap (API Overpass, gratis)
+const TIPOS={convenience:'Almacén / minimarket',general:'Almacén',supermarket:'Supermercado',greengrocer:'Verdulería',butcher:'Carnicería',bakery:'Panadería',kiosk:'Kiosco'};
+let real=[], realLayer=null, realFor=null, realState='cargando';
+async function loadReal(){
+  const key=me.lat.toFixed(3)+','+me.lng.toFixed(3); if(realFor===key)return; realFor=key; realState='cargando'; renderReal();
+  const q=`[out:json][timeout:25];nwr["shop"~"^(${Object.keys(TIPOS).join('|')})$"](around:2000,${me.lat},${me.lng});out center tags;`;
+  try{
+    const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+    if(!r.ok)throw new Error(r.status);
+    const data=await r.json();
+    real=data.elements.map(e=>({lat:e.lat??e.center?.lat,lng:e.lon??e.center?.lon,n:e.tags?.name||'Negocio sin nombre',t:TIPOS[e.tags?.shop]||'Negocio'})).filter(x=>x.lat!=null);
+    realState='ok';
+  }catch(e){real=[];realState='error';realFor=null}
+  render();
+}
+function renderReal(){
+  const box=$('realcard');
+  if(realState==='cargando'){box.innerHTML='<p class="smeta">Buscando negocios en OpenStreetMap…</p>';return}
+  if(realState==='error'){box.innerHTML='<p class="smeta">No pudimos traer los negocios reales ahora. Revisa tu conexión y vuelve a intentarlo.</p><button class="btn" id="retry" style="align-self:flex-start">Reintentar</button>';$('retry').onclick=loadReal;return}
+  real.forEach(x=>x.d=dist(me,x));
+  const inR=real.filter(x=>x.d<=radius).sort((a,b)=>a.d-b.d);
+  const named=inR.filter(x=>x.n!=='Negocio sin nombre');
+  box.innerHTML=`<p>En OpenStreetMap hay <b>${inR.length} negocios de barrio</b> a menos de ${km(radius)}. Todavía no publican sus precios en Canasta Barrio.</p>`+
+    (named.length?`<ul class="reallist">${named.slice(0,8).map(x=>`<li><span>${x.n}<br><span class="smeta">${x.t}</span></span><span class="smeta num">${km(x.d)}</span></li>`).join('')}</ul>`:'')+
+    (named.length>8?`<p class="smeta">Y ${named.length-8} más con nombre en el mapa.</p>`:'');
+  if(realLayer){realLayer.clearLayers();inR.forEach(x=>{realLayer.addLayer(L.marker([x.lat,x.lng],{icon:L.divIcon({className:'',html:'<div class="real-pin"></div>',iconSize:[14,14],iconAnchor:[7,7]}),title:x.n}).bindTooltip(`${x.n} · ${x.t}<br>Sin precios aún`))})}
 }
 
 function render(){
@@ -323,6 +368,7 @@ function render(){
     ||'<li class="card store smeta">No hay locales en este radio. Muévelo para ver más.</li>';
   document.querySelectorAll('.srow').forEach(b=>b.onclick=()=>{const id=+b.dataset.s;open=open===id?null:id;sel=id;render()});
   drawMap(best);
+  renderReal();
   $('items').innerHTML=Object.entries(list).map(([pid,q])=>{const p=P.find(x=>x.id===pid);
     return `<li class="item"><div>${p.n}<small>${p.u}</small></div><div class="step"><button data-m="${pid}" aria-label="Quitar uno">−</button><span class="num">${q}</span><button data-p="${pid}" aria-label="Agregar uno">+</button></div></li>`}).join('')
     ||'<li class="item smeta">Tu lista está vacía. Agrega productos abajo.</li>';
@@ -355,7 +401,7 @@ function renderOwner(){const s=S.find(x=>x.id==$('ostore').value);
     s.miss=P.filter(p=>price[s.id][p.id]==null).map(p=>p.id);flash('Precio publicado. Los clientes ya lo ven.')});
   $('ooffer').onchange=e=>{s.off.t=e.target.value;flash('Oferta publicada.')};
 }
-setR();initMap();render();
+setR();initMap();render();loadReal();
 </script>
 </body>
 </html>
