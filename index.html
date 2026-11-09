@@ -113,15 +113,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 .prow{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;font-size:14px}
 .prow input{font:inherit;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;text-align:right}
 .saved{font-size:13px;color:var(--good);font-weight:600;min-height:1.2em}
-.real-pin{width:14px;height:14px;border-radius:50%;background:#8A948E;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.real-pin{width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #8A948E;box-shadow:0 1px 3px rgba(0,0,0,.35);display:grid;place-items:center;font-size:14px;line-height:1}
 .realcard{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .realcard p{margin:0;font-size:14px}
 .reallist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .reallist li{display:grid;grid-template-columns:1fr auto;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
 .reallist li:first-child{border-top:0}
-.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.legend{display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.lg-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lg-item{display:flex;align-items:center;gap:8px;line-height:1.25;color:var(--ink)}
+.lg-item em{font-style:normal;color:var(--muted)}
+.lg-pin{width:22px;height:22px;font-size:11px;flex:none;border-width:2px}
+.lg-real{width:22px;height:22px;font-size:12px;flex:none}
+.lg-types{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lg-types span{background:var(--bg);border-radius:8px;padding:5px 8px;white-space:nowrap;color:var(--ink);font-size:12px}
 .how{font-size:13px;color:var(--muted);padding:12px 14px;line-height:1.5}
 .how b{color:var(--ink)}
 </style>
@@ -160,7 +165,16 @@ button{font:inherit;color:inherit;cursor:pointer}
         <label class="radius" for="radius">Radio <input type="range" id="radius" min="300" max="2000" step="100" value="1000"> <b class="num" id="rlab">1,0 km</b></label>
       </div>
       <div id="map" role="region" aria-label="Mapa de Renca con almacenes y supermercados"></div>
-      <div class="legend"><span><i style="background:#1F4535"></i>Publica precios (ejemplo)</span><span><i style="background:#8A948E"></i>Negocio real, sin precios aún</span></div>
+      <div class="legend">
+        <div class="lg-row">
+          <span class="lg-item"><span class="pin lg-pin" style="background:#1F4535">A</span><span>Publica precios<br><em>precios de ejemplo</em></span></span>
+          <span class="lg-item"><span class="real-pin lg-real">🏪</span><span>Negocio real<br><em>sin precios aún</em></span></span>
+        </div>
+        <div class="lg-types" aria-label="Tipos de negocio">
+          <span>🏪 Almacén</span><span>🛒 Supermercado</span><span>🥩 Carnicería</span>
+          <span>🥖 Panadería</span><span>🥬 Verdulería</span><span>💊 Farmacia</span>
+        </div>
+      </div>
     </div>
 
     <div class="combo card" id="combo"></div>
@@ -307,16 +321,18 @@ function locate(){
 
 
 // ===== Negocios reales desde OpenStreetMap (API Overpass, gratis)
-const TIPOS={convenience:'Almacén / minimarket',general:'Almacén',supermarket:'Supermercado',greengrocer:'Verdulería',butcher:'Carnicería',bakery:'Panadería',kiosk:'Kiosco'};
+const TIPOS={convenience:['Almacén / minimarket','🏪'],general:['Almacén','🏪'],supermarket:['Supermercado','🛒'],greengrocer:['Verdulería','🥬'],butcher:['Carnicería','🥩'],bakery:['Panadería','🥖'],kiosk:['Kiosco','📰'],alcohol:['Botillería','🍷'],pharmacy:['Farmacia','💊']};
 let real=[], realLayer=null, realFor=null, realState='cargando';
 async function loadReal(){
   const key=me.lat.toFixed(3)+','+me.lng.toFixed(3); if(realFor===key)return; realFor=key; realState='cargando'; renderReal();
-  const q=`[out:json][timeout:25];nwr["shop"~"^(${Object.keys(TIPOS).join('|')})$"](around:2000,${me.lat},${me.lng});out center tags;`;
+  const shops=Object.keys(TIPOS).filter(k=>k!=='pharmacy').join('|');
+  const q=`[out:json][timeout:25];(nwr["shop"~"^(${shops})$"](around:2000,${me.lat},${me.lng});nwr["amenity"="pharmacy"](around:2000,${me.lat},${me.lng});nwr["shop"="chemist"](around:2000,${me.lat},${me.lng}););out center tags;`;
   try{
     const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});
     if(!r.ok)throw new Error(r.status);
     const data=await r.json();
-    real=data.elements.map(e=>({lat:e.lat??e.center?.lat,lng:e.lon??e.center?.lon,n:e.tags?.name||'Negocio sin nombre',t:TIPOS[e.tags?.shop]||'Negocio'})).filter(x=>x.lat!=null);
+    real=data.elements.map(e=>{const tg=e.tags||{};const k=(tg.amenity==='pharmacy'||tg.shop==='chemist')?'pharmacy':tg.shop;const T=TIPOS[k]||['Negocio','🏬'];
+      return {lat:e.lat??e.center?.lat,lng:e.lon??e.center?.lon,n:tg.name||'Negocio sin nombre',t:T[0],ic:T[1]}}).filter(x=>x.lat!=null);
     realState='ok';
   }catch(e){real=[];realState='error';realFor=null}
   render();
@@ -328,10 +344,11 @@ function renderReal(){
   real.forEach(x=>x.d=dist(me,x));
   const inR=real.filter(x=>x.d<=radius).sort((a,b)=>a.d-b.d);
   const named=inR.filter(x=>x.n!=='Negocio sin nombre');
+  if(!inR.length){box.innerHTML=`<p><b>OpenStreetMap no tiene negocios registrados a menos de ${km(radius)}.</b></p><p class="smeta">Los mapas digitales casi no conocen los almacenes de barrio. Por eso en Canasta Barrio cada negocio podrá inscribirse solo. ¿Conoces uno? Puedes agregarlo a OpenStreetMap con la app gratuita Every Door.</p>`;if(realLayer)realLayer.clearLayers();return}
   box.innerHTML=`<p>En OpenStreetMap hay <b>${inR.length} negocios de barrio</b> a menos de ${km(radius)}. Todavía no publican sus precios en Canasta Barrio.</p>`+
-    (named.length?`<ul class="reallist">${named.slice(0,8).map(x=>`<li><span>${x.n}<br><span class="smeta">${x.t}</span></span><span class="smeta num">${km(x.d)}</span></li>`).join('')}</ul>`:'')+
+    (named.length?`<ul class="reallist">${named.slice(0,8).map(x=>`<li><span>${x.ic} ${x.n}<br><span class="smeta">${x.t}</span></span><span class="smeta num">${km(x.d)}</span></li>`).join('')}</ul>`:'')+
     (named.length>8?`<p class="smeta">Y ${named.length-8} más con nombre en el mapa.</p>`:'');
-  if(realLayer){realLayer.clearLayers();inR.forEach(x=>{realLayer.addLayer(L.marker([x.lat,x.lng],{icon:L.divIcon({className:'',html:'<div class="real-pin"></div>',iconSize:[14,14],iconAnchor:[7,7]}),title:x.n}).bindTooltip(`${x.n} · ${x.t}<br>Sin precios aún`))})}
+  if(realLayer){realLayer.clearLayers();inR.forEach(x=>{realLayer.addLayer(L.marker([x.lat,x.lng],{icon:L.divIcon({className:'',html:`<div class="real-pin">${x.ic}</div>`,iconSize:[26,26],iconAnchor:[13,13]}),title:x.n}).bindTooltip(`${x.n} · ${x.t}<br>Sin precios aún`))})}
 }
 
 function render(){
